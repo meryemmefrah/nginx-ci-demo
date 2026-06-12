@@ -23,7 +23,59 @@
 #       - name: Tester la configuration Nginx
 #         run: docker run --rm nginx-ci-demo nginx -t
 
-name: CI Nginx - Niveau 2
+# name: CI Nginx - Niveau 2
+
+# on:
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
+
+# jobs:
+#   build-test:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Récupérer le code
+#         uses: actions/checkout@v4
+
+#       - name: Vérifier la présence des fichiers
+#         run: |
+#           test -f Dockerfile
+#           test -f nginx.conf
+#           test -f index.html
+#           echo "Tous les fichiers sont présents."
+
+#       - name: Build de l'image Docker
+#         run: docker build -t nginx-ci-demo .
+
+#       - name: Tester la configuration Nginx
+#         run: docker run --rm nginx-ci-demo nginx -t
+
+#       - name: Lancer le conteneur
+#         run: docker run -d --name nginx-test -p 8080:80 nginx-ci-demo
+
+#       - name: Attendre le démarrage
+#         run: sleep 3
+
+#       - name: Tester que le service répond en HTTP
+#         run: |
+#           code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
+#           echo "Code HTTP page d'accueil : $code"
+#           test "$code" = "200"
+
+#       - name: Tester l'endpoint /health
+#         run: |
+#           code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
+#           body=$(curl -s http://localhost:8080/health)
+#           echo "Code HTTP /health : $code | Réponse : $body"
+#           test "$code" = "200"
+
+#       - name: Nettoyer le conteneur
+#         if: always()
+#         run: docker rm -f nginx-test
+
+
+name: CI/CD Nginx - Niveau 3
 
 on:
   push:
@@ -66,10 +118,49 @@ jobs:
       - name: Tester l'endpoint /health
         run: |
           code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
-          body=$(curl -s http://localhost:8080/health)
-          echo "Code HTTP /health : $code | Réponse : $body"
+          echo "Code HTTP /health : $code"
           test "$code" = "200"
 
       - name: Nettoyer le conteneur
         if: always()
         run: docker rm -f nginx-test
+
+  publish:
+    needs: build-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Connexion à GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build et push avec tag SHA
+        run: |
+          IMAGE=ghcr.io/${{ github.repository_owner }}/nginx-ci-demo
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
+          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:latest
+          echo "Image publiée : $IMAGE:${{ github.sha }}"
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    environment: production
+    steps:
+      - name: Déploiement (simulé)
+        run: |
+          IMAGE=ghcr.io/${{ github.repository_owner }}/nginx-ci-demo
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          echo "Déploiement de l'image $IMAGE:${{ github.sha }} en production..."
+          echo "Déploiement terminé avec succès."
