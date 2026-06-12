@@ -1,7 +1,35 @@
-name: CI Nginx - Niveau 1
+# name: CI Nginx - Niveau 1
+
+# on:
+#   workflow_dispatch:
+
+# jobs:
+#   build-test:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Récupérer le code
+#         uses: actions/checkout@v4
+
+#       - name: Vérifier la présence des fichiers
+#         run: |
+#           test -f Dockerfile
+#           test -f nginx.conf
+#           test -f index.html
+#           echo "Tous les fichiers sont présents."
+
+#       - name: Build de l'image Docker
+#         run: docker build -t nginx-ci-demo .
+
+#       - name: Tester la configuration Nginx
+#         run: docker run --rm nginx-ci-demo nginx -t
+
+name: CI Nginx - Niveau 2
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   build-test:
@@ -22,3 +50,26 @@ jobs:
 
       - name: Tester la configuration Nginx
         run: docker run --rm nginx-ci-demo nginx -t
+
+      - name: Lancer le conteneur
+        run: docker run -d --name nginx-test -p 8080:80 nginx-ci-demo
+
+      - name: Attendre le démarrage
+        run: sleep 3
+
+      - name: Tester que le service répond en HTTP
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
+          echo "Code HTTP page d'accueil : $code"
+          test "$code" = "200"
+
+      - name: Tester l'endpoint /health
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
+          body=$(curl -s http://localhost:8080/health)
+          echo "Code HTTP /health : $code | Réponse : $body"
+          test "$code" = "200"
+
+      - name: Nettoyer le conteneur
+        if: always()
+        run: docker rm -f nginx-test
