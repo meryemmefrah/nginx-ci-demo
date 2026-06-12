@@ -1,0 +1,24 @@
+name: CI Nginx - Niveau 1
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Vérifier la présence des fichiers
+        run: |
+          test -f Dockerfile
+          test -f nginx.conf
+          test -f index.html
+          echo "Tous les fichiers sont présents."
+
+      - name: Build de l'image Docker
+        run: docker build -t nginx-ci-demo .
+
+      - name: Tester la configuration Nginx
+        run: docker run --rm nginx-ci-demo nginx -t
